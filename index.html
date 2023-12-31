@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tetris by Aidar</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #111;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      position: relative;
+    }
+    canvas {
+      border: 1px solid #333;
+      background-color: #000;
+    }
+    button {
+      margin: 5px;
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #333;
+      color: #fff;
+      border: none;
+      border-radius: 10px; /* Set border-radius for rounded corners */
+    }
+    #gameTitle {
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+    }
+    #gameControls {
+      display: flex;
+      flex-direction: row;
+      margin-top: 20px;
+    }
+    #systemControls {
+      display: flex;
+      flex-direction: column;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameTitle">Tetris by Aidar</div>
+  <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+  <div id="gameControls">
+    <button onclick="moveLeft()">Влево</button>
+    <button onclick="moveRight()">Вправо</button>
+	<button onclick="rotatePiece()">Поворот</button>
+    <button onclick="moveDown()">Вниз</button>
+  </div>
+  <div id="systemControls">
+    <button id="audioButton" onclick="toggleAudio()">Включить музыку</button>
+    <button onclick="restartGame()">Перезапустить</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('tetrisCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const ROWS = 20;
+    const COLS = 10;
+    const BLOCK_SIZE = 30;
+    const speed = 300; // milliseconds
+
+    const board = [];
+    for (let row = 0; row < ROWS; row++) {
+      board[row] = [];
+      for (let col = 0; col < COLS; col++) {
+        board[row][col] = 0;
+      }
+    }
+
+    function drawSquare(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      ctx.strokeStyle = '#ccc';
+      ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    }
+
+    function drawBoard() {
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          if (board[row][col] !== 0) {
+            drawSquare(col, row, COLORS[board[row][col]]);
+          }
+        }
+      }
+    }
+
+    const COLORS = ['#000', '#00f', '#0f0', '#f00', '#ff0', '#f0f', '#0ff', '#888'];
+
+    const SHAPES = [
+      [[1, 1, 1, 1]],
+      [[1, 1], [1, 1]],
+      [[1, 1, 1], [0, 1, 0]],
+      [[1, 1, 1], [1, 0, 0]],
+      [[1, 1, 1], [0, 0, 1]],
+      [[1, 1, 0], [0, 1, 1]],
+      [[0, 1, 1], [1, 1, 0]]
+    ];
+
+    function drawPiece(piece, color, offsetX, offsetY) {
+      for (let row = 0; row < piece.length; row++) {
+        for (let col = 0; col < piece[row].length; col++) {
+          if (piece[row][col]) {
+            drawSquare(col + offsetX, row + offsetY, color);
+          }
+        }
+      }
+    }
+
+    function collide(piece, offsetX, offsetY) {
+      for (let row = 0; row < piece.length; row++) {
+        for (let col = 0; col < piece[row].length; col++) {
+          if (
+            piece[row][col] &&
+            (board[row + offsetY] && board[row + offsetY][col + offsetX]) !== 0
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function rotate(piece) {
+      return piece[0].map((_, i) => piece.map(row => row[i])).reverse();
+    }
+
+    let currentPiece;
+    let currentColor;
+    let currentX;
+    let currentY;
+
+    function newPiece() {
+      const pieceIndex = Math.floor(Math.random() * SHAPES.length);
+      currentPiece = SHAPES[pieceIndex];
+      currentColor = pieceIndex + 1; // Use index to get a color from COLORS
+      currentX = Math.floor(COLS / 2) - Math.floor(currentPiece[0].length / 2);
+      currentY = 0;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBoard();
+      drawPiece(currentPiece, COLORS[currentColor], currentX, currentY);
+    }
+
+    function moveDown() {
+      if (!collide(currentPiece, currentX, currentY + 1)) {
+        currentY++;
+      } else {
+        merge();
+        checkRows();
+        newPiece();
+        if (collide(currentPiece, currentX, currentY)) {
+          // Game over
+          alert('Игра окончена!');
+          restartGame();
+        }
+      }
+      draw();
+    }
+
+    function merge() {
+      for (let row = 0; row < currentPiece.length; row++) {
+        for (let col = 0; col < currentPiece[row].length; col++) {
+          if (currentPiece[row][col]) {
+            board[row + currentY][col + currentX] = currentColor;
+          }
+        }
+      }
+    }
+
+    function checkRows() {
+      for (let row = ROWS - 1; row >= 0; row--) {
+        if (board[row].every(cell => cell !== 0)) {
+          board.splice(row, 1);
+          board.unshift(new Array(COLS).fill(0));
+        }
+      }
+    }
+
+    function restartGame() {
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          board[row][col] = 0;
+        }
+      }
+      newPiece();
+      draw();
+    }
+
+    function moveLeft() {
+      if (!collide(currentPiece, currentX - 1, currentY)) {
+        currentX--;
+        draw();
+      }
+    }
+
+    function moveRight() {
+      if (!collide(currentPiece, currentX + 1, currentY)) {
+        currentX++;
+        draw();
+      }
+    }
+
+    function rotatePiece() {
+      const rotatedPiece = rotate(currentPiece);
+      if (!collide(rotatedPiece, currentX, currentY)) {
+        currentPiece = rotatedPiece;
+        draw();
+      }
+    }
+
+    function addSnowflakes() {
+      setInterval(() => {
+        const x = Math.random() * canvas.width;
+        const y = -10;
+        const radius = Math.random() * 3 + 1;
+        const speedY = Math.random() * 3 + 1;
+
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (y + speedY + radius > canvas.height) {
+          // Reset if snowflake reaches the bottom
+          ctx.clearRect(x - radius, y - radius, radius * 2, radius * 2);
+        } else {
+          ctx.clearRect(x - radius, y - radius, radius * 2, radius * 2);
+          ctx.beginPath();
+          ctx.arc(x, y + speedY, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }, 50);
+    }
+
+    addSnowflakes(); // Start snowfall
+
+    let audio = new Audio('tetris.mp3'); // Replace with the path to your audio file
+
+    function playAudio() {
+      audio.currentTime = 0;
+      audio.play();
+    }
+
+    function pauseAudio() {
+      audio.pause();
+    }
+
+    function toggleAudio() {
+      if (audio.paused) {
+        playAudio();
+        document.getElementById('audioButton').textContent = 'Пауза';
+      } else {
+        pauseAudio();
+        document.getElementById('audioButton').textContent = 'Включить музыку';
+      }
+    }
+
+    document.addEventListener('keydown', (event) => {
+      switch (event.code) {
+        case 'ArrowDown':
+          moveDown();
+          break;
+        case 'ArrowLeft':
+          moveLeft();
+          break;
+        case 'ArrowRight':
+          moveRight();
+          break;
+        case 'ArrowUp':
+          rotatePiece();
+          break;
+      }
+    });
+
+    function gameLoop() {
+      moveDown();
+      setTimeout(gameLoop, speed);
+    }
+
+    newPiece();
+    draw();
+    gameLoop();
+    playAudio(); // Start playing audio
+  </script>
+</body>
+</html>
